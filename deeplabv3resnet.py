@@ -17,7 +17,7 @@ class MulticlassDiceLoss(nn.Module):
         super().__init__()
         self.num_classes = num_classes
 
-    def forward(self, logits, targets, smooth=1e-6):
+    def forward(self, logits, targets, smooth=1e-6, ignore_index=0):
         """Computes the dice loss for all classes and provides an overall weighted loss."""
         probabilities = logits
 
@@ -27,18 +27,17 @@ class MulticlassDiceLoss(nn.Module):
 
         # Multiply one-hot encoded ground truth labels with the probabilities to get the
         # prredicted probability for the actual class.
-        intersection = (targets_one_hot * probabilities).sum()
+        intersection = (targets_one_hot[:, ignore_index] * probabilities[:, ignore_index]).sum() \
+            + (targets_one_hot[:, ignore_index+1:] * probabilities[:, ignore_index+1:]).sum()
+        n = (targets != ignore_index).sum()
 
-        mod_a = intersection.sum()
-        mod_b = targets.numel()
-
-        dice_coefficient = 2. * intersection / (mod_a + mod_b + smooth)
+        dice_coefficient = 2. * intersection / (intersection + n + smooth)
         dice_loss = -dice_coefficient.log()
         return dice_loss
 
 
 def postprocess(batch):
-  return F.interpolate(batch, 512, mode = 'nearest-exact')
+    return F.interpolate(batch, 512, mode='nearest-exact')
 
 
 class DataSet_with_transform(Dataset):
