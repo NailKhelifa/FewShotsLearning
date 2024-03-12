@@ -36,8 +36,8 @@ for k in range(len(labels_trainr)) :
     labels.append(torch.tensor(np.array(labels_trainr.iloc[k]).reshape(512, 512)))
 
 
-y_train = torch.stack(labels[0:800])
-x_train = torch.tensor(data_train[0:800]).unsqueeze(1)  # unsqueeze pour la dimension des channels de couleur (1 car greyscale)
+y_train = torch.stack(labels[0:400])
+x_train = torch.tensor(data_train[0:400]).unsqueeze(1)  # unsqueeze pour la dimension des channels de couleur (1 car greyscale)
 
 y_valid = torch.stack(labels[800:])
 x_valid = torch.tensor(data_train[800:]).unsqueeze(1)

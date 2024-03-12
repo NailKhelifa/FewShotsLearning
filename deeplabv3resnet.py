@@ -1,3 +1,4 @@
+from tqdm import tqdm
 import numpy as np
 import pandas as pd
 import torch
@@ -8,23 +9,6 @@ import torchvision.transforms.v2 as transforms
 import torch.nn as nn
 import torch.nn.functional as F
 import time
-import os
-
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-data_dir = os.getcwd() + '/data'
-num_epochs = 1
-batch_size = 2
-lr = 0.005
-num_classes = 31  # le nombre de classes à détecter, 0 inclus
-in_channels = 256  # le nombre de canaux en entrée du classifier
-
-# resize = 520 # le resize adapté pour le modèle
-# resize = 512
-y_train = torch.load(data_dir+'/y_train.pt')
-x_train = torch.load(data_dir+'/x_train.pt')
-y_valid = torch.load(data_dir+'/y_valid.pt')
-x_valid = torch.load(data_dir+'/x_valid.pt')
 
 
 class MulticlassDiceLoss(nn.Module):
@@ -73,50 +57,73 @@ class DataSet_with_transform(Dataset):
             x = self.transform(x)
         return [x, y]
 
-
-weights = DeepLabV3_ResNet50_Weights.DEFAULT # on commence par charger les weights
-model = deeplabv3_resnet50(weights=weights) # instanciation du modèle
-model.backbone.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False) # on modifie la première couche pour prendre du greyscale
-
 preprocess = transforms.Compose([
     transforms.ToPILImage(),
     # transforms.Resize(512),
     transforms.ToTensor(),
     transforms.Normalize([0.5], [0.225])])
 
+def postprocess(batch):
+  return F.interpolate(batch, 512, mode = 'nearest-exact')
 
-model.classifier[4] = DeepLabHead(in_channels, num_classes)  # on change le classifier pour avoir le bon nombre de classes
 
-model.to(device)
-model.train()
-optimizer = torch.optim.AdamW(model.parameters(), lr=0.005)
-loss_over_epochs = []
-train_dataset = DataSet_with_transform(x_train, y_train, transform=preprocess)
-valid_dataset = DataSet_with_transform(x_valid, y_valid, transform=preprocess)
-train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=True, pin_memory = True)
-criterion = MulticlassDiceLoss(num_classes=31)
+if __name__ == "__main__":
+    device = torch.device("cuda")
+    data_dir = 'data'
+    num_epochs = 100
+    batch_size = 16
+    lr = 0.005
+    num_classes = 31 # le nombre de classes à détecter, 0 inclus
+    in_channels = 256 # le nombre de canaux en entrée du classifier
 
-for epoch in range(num_epochs):
-    batch_loss = []
-    epoch_start_time = time.time()  # Mesure du temps de l'époque
-    for x, y in train_dataloader:
-        print('processing batch')
-        start_time = time.time()
-        x, y = x.to(device), y.to(device)
-        optimizer.zero_grad()
-        outputs = postprocess(model(x)['out'].softmax(dim=1))        
-        loss = criterion(outputs, y)
-        loss.backward()
-        optimizer.step()
-        batch_loss.append(loss.item())
+    # resize = 520 # le resize adapté pour le modèle
+    # resize = 512
+
+
+
+    weights = DeepLabV3_ResNet50_Weights.DEFAULT # on commence par charger les weights
+    model = deeplabv3_resnet50(weights=weights) # instanciation du modèle
+    model.backbone.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False) # on modifie la première couche pour prendre du greyscale
+
+
+    y_train = torch.load(data_dir+'/y_train.pt')
+    x_train = torch.load(data_dir+'/x_train.pt')
+    y_valid = torch.load(data_dir+'/y_valid.pt')
+    x_valid = torch.load(data_dir+'/x_valid.pt')
+
+    train_dataset = DataSet_with_transform(x_train, y_train, transform = preprocess)
+    valid_dataset = DataSet_with_transform(x_valid, y_valid, transform = preprocess)
+    train_dataloader = DataLoader(train_dataset, batch_size = 8, shuffle = True, pin_memory = True)
+
+    model.classifier[4] = DeepLabHead(in_channels, num_classes) # on change le classifier pour avoir le bon nombre de classes
+
+    model.to(device)
+    model.train()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.005)
+    loss_over_epochs = []
+    criterion = MulticlassDiceLoss(num_classes=num_classes)
+
+    for epoch in range(num_epochs):
+        batch_loss = []
+        print(epoch)
+        epoch_start_time = time.time()  # Mesure du temps de l'époque
+        for x, y in train_dataloader:
+            start_time = time.time()
+            x, y = x.to(device), y.to(device)
+            optimizer.zero_grad()
+            outputs = postprocess(model(x)['out'].softmax(dim=1))        
+            loss = criterion(outputs, y)
+            loss.backward()
+            optimizer.step()
+            batch_loss.append(loss.item())
+            
+            batch_time = time.time() - start_time  
+            torch.cuda.empty_cache()    
+        epoch_time = time.time() - epoch_start_time  # Calcul du temps écoulé pour l'époque
+        print(f'Epoch [{epoch+1}/{num_epochs}], Average Loss: {np.mean(batch_loss)}, Mean batch Time: {epoch_time/100:.4f} seconds') 
         
-        batch_time = time.time() - start_time  
-        torch.cuda.empty_cache()    
-    epoch_time = time.time() - epoch_start_time  # Calcul du temps écoulé pour l'époque
-    print(f'Epoch [{epoch+1}/{num_epochs}], Average Loss: {np.mean(batch_loss)}, Mean Time / img: {epoch_time/800:.4f} seconds')
-    
-    loss_over_epochs.append(np.mean(batch_loss))
+        loss_over_epochs.append(np.mean(batch_loss))
 
-torch.save(model.state_dict(), 'deeplabv3resnet.pt')
-torch.save(loss_over_epochs, 'loss_deeplabv3resnet.pt')
+    torch.save(model.state_dict(), 'results/deeplabv3resnet.pt')
+    torch.save(loss_over_epochs, 'results/loss_deeplabv3resnet.pt')
 
