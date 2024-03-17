@@ -30,8 +30,8 @@ model.to(device)
 
 # Load data
 
-y_valid = torch.load(data_dir+'/y_valid.pt')
-x_valid = torch.load(data_dir+'/x_valid.pt')
+y_valid = torch.load(data_dir+'/y_train.pt')
+x_valid = torch.load(data_dir+'/x_train.pt')
 valid_dataset = DataSet_with_transform(x_valid, y_valid, transform=preprocess)
 valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=False, pin_memory=True)
 
@@ -78,4 +78,4 @@ mean_accuracy = torch.mean(torch.tensor(accuracies))
 print("mean loss: ", mean_loss)
 print("mean accuracy: ", mean_accuracy)
 
-torch.save(preds, "results/preds.pt")
+torch.save(predictions, "results/preds.pt")
