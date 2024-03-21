@@ -61,7 +61,7 @@ for x, y in valid_dataloader:
     outputs = postprocess(model(x)['out'].softmax(dim=1))   
 
     loss = loss_f(outputs, y)
-    preds = outputs.argmax(axis = 1)
+    preds = outputs.argmax(axis=1)
     acc = rand_index(y, preds)
 
     batch_loss.append(loss.detach())

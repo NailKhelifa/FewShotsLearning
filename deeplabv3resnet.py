@@ -27,7 +27,7 @@ class MulticlassDiceLoss(nn.Module):
 
         # Multiply one-hot encoded ground truth labels with the probabilities to get the
         # prredicted probability for the actual class.
-        intersection = (targets_one_hot[:, ignore_index] * probabilities[:, ignore_index]).sum() \
+        intersection = (targets_one_hot[:, :ignore_index] * probabilities[:, :ignore_index]).sum() \
             + (targets_one_hot[:, ignore_index+1:] * probabilities[:, ignore_index+1:]).sum()
         n = (targets != ignore_index).sum()
 
